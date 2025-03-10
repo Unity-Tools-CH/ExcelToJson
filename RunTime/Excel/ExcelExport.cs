@@ -379,35 +379,35 @@ public class XFFile
     public static void OpenFolder(string filePath)
     {
         var folderPath = Path.GetDirectoryName(filePath);
-        // 检查文件夹路径是否存在
-        if (Directory.Exists(folderPath))
-        {
-            // 根据当前平台选择打开文件资源管理器的命令
-            string explorerCommand = "";
-            if (Application.platform == RuntimePlatform.WindowsEditor || Application.platform == RuntimePlatform.WindowsPlayer)
-            {
-                explorerCommand = "explorer";
-            }
-            else if (Application.platform == RuntimePlatform.OSXEditor || Application.platform == RuntimePlatform.OSXPlayer)
-            {
-                explorerCommand = "open";
-                // 添加 -R 参数以打开文件夹
-                folderPath = "-R \"" + folderPath + "\"";
-            }
-            else
-            {
-                Debug.LogWarning("该平台不支持打开文件夹");
-                return;
-            }
 
-            // 打开文件资源管理器并指定文件夹路径
-            System.Diagnostics.Process.Start(explorerCommand, folderPath);
+        // 检查文件夹路径是否存在，不存在则创建
+        if (!Directory.Exists(folderPath))
+        {
+            Directory.CreateDirectory(folderPath);
+            Debug.Log("文件夹不存在，已创建：" + folderPath);
+        }
+
+        // 根据当前平台选择打开文件资源管理器的命令
+        string explorerCommand = "";
+        if (Application.platform == RuntimePlatform.WindowsEditor || Application.platform == RuntimePlatform.WindowsPlayer)
+        {
+            explorerCommand = "explorer";
+        }
+        else if (Application.platform == RuntimePlatform.OSXEditor || Application.platform == RuntimePlatform.OSXPlayer)
+        {
+            explorerCommand = "open";
+            folderPath = "-R \"" + folderPath + "\"";
         }
         else
         {
-            Debug.LogError("文件夹路径不存在：" + folderPath);
+            Debug.LogWarning("该平台不支持打开文件夹");
+            return;
         }
+
+        // 打开文件资源管理器
+        System.Diagnostics.Process.Start(explorerCommand, folderPath);
     }
+
 
     public static void CopyDirectory(string sourceDir, string targetDir, bool ignoreMeta = true)
     {
