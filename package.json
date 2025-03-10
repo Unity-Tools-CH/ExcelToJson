@@ -1,0 +1,20 @@
+{
+  "name": "com.chenhao6415.exceltojson",
+  "version": "1.0.0",
+  "displayName": "ExcelToJson",
+  "unity": "2021.1",
+  "documentationUrl": "",
+  "changelogUrl": "",
+  "licensesUrl": "",
+  "keywords": [
+    "SuperScrolliew",
+    "Super",
+    "Scrolliew"
+  ],
+  "author": {
+    "name": "\u7396\u4e00",
+    "email": "1255755615@qq.com",
+    "url": ""
+  },
+  "description": "Excel\u8f6c\u5316\u4e3ajson\u6587\u4ef6\uff0cjson\u6587\u4ef6\u8f6c\u5316\u4e3a\u7c7b\u6570\u636e"
+}
