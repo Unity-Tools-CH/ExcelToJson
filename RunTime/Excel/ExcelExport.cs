@@ -16,6 +16,7 @@ public class ExcelExport
 
     //public static string DataPath = Application.dataPath.Replace("Assets", "DataConfig/Data/");
     public static string DataPath = Path.Combine(Application.dataPath, "DataConfig/Class/");
+    public static string BasePath = Path.Combine(Application.dataPath, "DataConfig/Base/");
 
     // 实体类模板存放位置
     static string scriptsPath = DataPath;
@@ -31,36 +32,40 @@ public class ExcelExport
     [UnityEditor.MenuItem("[GameConfig]/ExportToJson", false, 1)]
     public static void ReadExcel()
     {
+        if (!Directory.Exists(DataPath))
+        {
+            Directory.CreateDirectory(DataPath);
+        }
+
+        // 确保 CfgMgr 和 CfgBase 存在
+        CreateCfgBase();
+        CreateCfgMgr();
+
         if (Directory.Exists(ConfigPath))
         {
-            // 获取指定目录下所有的文件
             DirectoryInfo direction = new DirectoryInfo(ConfigPath);
             FileInfo[] files = direction.GetFiles("*", SearchOption.AllDirectories);
             Debug.Log("fileCount:" + files.Length);
 
+            List<string> classList = new List<string>(); // 记录所有导出的类名
+
             for (int i = 0; i < files.Length; i++)
             {
-                if (files[i].Name.StartsWith("~"))
-                    continue;
-                if (files[i].Name.EndsWith(".meta") || !files[i].Name.EndsWith(".xlsx"))
-                {
-                    continue;
-                }
+                if (files[i].Name.StartsWith("~")) continue;
+                if (files[i].Name.EndsWith(".meta") || !files[i].Name.EndsWith(".xlsx")) continue;
+
+                string className = files[i].Name.Replace(".xlsx", ""); // 获取类名
+                classList.Add(className);
+
                 Debug.Log($"<color=#00ff00>Exporting:</color> {files[i].FullName}");
                 LoadData(files[i].FullName, files[i].Name);
                 Debug.Log($"<color=#00ff00>Export Finished:</color> {files[i].FullName}");
 
-                // 打印导出的 JSON 文件路径
-                string jsonFilePath = Path.Combine(jsonPath, files[i].Name.Replace(".xlsx", ".txt"));
-                Debug.Log($"<color=#00ff00>JSON Export Path:</color> {jsonFilePath}");
-
-                // 打印导出的 C# 类文件路径
-                string scriptFilePath = Path.Combine(scriptsPath, files[i].Name.Replace(".xlsx", ".cs"));
-                Debug.Log($"<color=#00ff00>Script Export Path:</color> {scriptFilePath}");
-
-                // 刷新本地资源
                 AssetDatabase.Refresh();
             }
+
+            // 更新 CfgMgr，追加新类
+            UpdateCfgMgr(classList);
 
             Debug.Log("<color=#00ff00>Export Config Finish!</color>");
         }
@@ -69,6 +74,112 @@ public class ExcelExport
             Debug.LogError("ReadExcel configPath not Exists!");
         }
     }
+
+    static void CreateCfgBase()
+    {
+        string dirPath = Path.Combine(DataPath, "Base");
+        if (!Directory.Exists(dirPath))
+        {
+            Directory.CreateDirectory(dirPath); // 先创建目录
+        }
+
+        string filePath = Path.Combine(dirPath, "CfgBase.cs");
+        if (File.Exists(filePath)) return; // 已存在就跳过
+
+        string content =
+    @"using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class CfgBase
+{
+    public virtual void LoadData() { }
+    public virtual void Release() { }
+}";
+        File.WriteAllText(filePath, content);
+        Debug.Log("<color=#00ff00>CfgBase.cs Created!</color>");
+    }
+
+
+    static void CreateCfgMgr()
+    {
+        string dirPath = Path.Combine(DataPath);
+        if (!Directory.Exists(dirPath))
+        {
+            Directory.CreateDirectory(dirPath); // 先创建目录
+        }
+
+        string filePath = Path.Combine(dirPath, "CfgMgr.cs");
+        if (File.Exists(filePath)) return; // 已存在就跳过
+
+        string content =
+    @"using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class CfgMgr
+{
+    public static CfgMgr Instance { get; private set; } = new CfgMgr();
+
+    public void Init()
+    {
+        // 初始化配置
+    }
+}";
+        File.WriteAllText(filePath, content);
+        Debug.Log("<color=#00ff00>CfgMgr.cs Created!</color>");
+    }
+
+
+    static void UpdateCfgMgr(List<string> classList)
+    {
+        string filePath = Path.Combine(BasePath, "CfgMgr.cs");
+        if (!File.Exists(filePath))
+        {
+            Debug.Log("CfgMgr.cs已存在");
+            return;
+        }
+
+        // 读取现有内容
+        string content = File.ReadAllText(filePath);
+
+        // 构建新的类成员
+        string newFields = "";
+        string newInits = "";
+        foreach (string className in classList)
+        {
+            if (!content.Contains($"public {className} {className}")) // 避免重复添加
+            {
+                newFields += $"    public {className} {className} = new {className}();\n";
+                newInits += $"        {className}.LoadData();\n";
+            }
+        }
+
+        // 找到 Init 方法的插入点
+        int initIndex = content.IndexOf("public void Init()");
+        if (initIndex != -1)
+        {
+            int startIndex = content.IndexOf("{", initIndex) + 1;
+            int endIndex = content.IndexOf("}", startIndex);
+
+            if (startIndex != -1 && endIndex != -1)
+            {
+                // 插入初始化代码
+                content = content.Substring(0, startIndex) + "\n" + newInits + content.Substring(endIndex);
+            }
+        }
+
+        // 在类的最顶层插入字段
+        int classStartIndex = content.IndexOf("{");
+        if (classStartIndex != -1)
+        {
+            content = content.Insert(classStartIndex + 1, "\n" + newFields);
+        }
+
+        File.WriteAllText(filePath, content);
+        Debug.Log("<color=#00ff00>CfgMgr.cs Updated!</color>");
+    }
+
 
 
     /// <summary>
@@ -379,35 +490,35 @@ public class XFFile
     public static void OpenFolder(string filePath)
     {
         var folderPath = Path.GetDirectoryName(filePath);
+        // 检查文件夹路径是否存在
+        if (Directory.Exists(folderPath))
+        {
+            // 根据当前平台选择打开文件资源管理器的命令
+            string explorerCommand = "";
+            if (Application.platform == RuntimePlatform.WindowsEditor || Application.platform == RuntimePlatform.WindowsPlayer)
+            {
+                explorerCommand = "explorer";
+            }
+            else if (Application.platform == RuntimePlatform.OSXEditor || Application.platform == RuntimePlatform.OSXPlayer)
+            {
+                explorerCommand = "open";
+                // 添加 -R 参数以打开文件夹
+                folderPath = "-R \"" + folderPath + "\"";
+            }
+            else
+            {
+                Debug.LogWarning("该平台不支持打开文件夹");
+                return;
+            }
 
-        // 检查文件夹路径是否存在，不存在则创建
-        if (!Directory.Exists(folderPath))
-        {
-            Directory.CreateDirectory(folderPath);
-            Debug.Log("文件夹不存在，已创建：" + folderPath);
-        }
-
-        // 根据当前平台选择打开文件资源管理器的命令
-        string explorerCommand = "";
-        if (Application.platform == RuntimePlatform.WindowsEditor || Application.platform == RuntimePlatform.WindowsPlayer)
-        {
-            explorerCommand = "explorer";
-        }
-        else if (Application.platform == RuntimePlatform.OSXEditor || Application.platform == RuntimePlatform.OSXPlayer)
-        {
-            explorerCommand = "open";
-            folderPath = "-R \"" + folderPath + "\"";
+            // 打开文件资源管理器并指定文件夹路径
+            System.Diagnostics.Process.Start(explorerCommand, folderPath);
         }
         else
         {
-            Debug.LogWarning("该平台不支持打开文件夹");
-            return;
+            Debug.LogError("文件夹路径不存在：" + folderPath);
         }
-
-        // 打开文件资源管理器
-        System.Diagnostics.Process.Start(explorerCommand, folderPath);
     }
-
 
     public static void CopyDirectory(string sourceDir, string targetDir, bool ignoreMeta = true)
     {
